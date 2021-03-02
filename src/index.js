@@ -1,59 +1,94 @@
-import React from 'react';
-import ReactDOM from 'react-dom';
+import React, { useState } from 'react';
+import { render } from "react-dom";
 import './index.css';
 // import App from './App';
-import reportWebVitals from './reportWebVitals';
 
 import {
   ApolloClient,
   InMemoryCache,
   useQuery,
   gql,
-  ApolloProvider
+  ApolloProvider,
+  NetworkStatus
 } from '@apollo/client';
 
 const client = new ApolloClient({
-  uri: 'https://48p1r2roz4.sse.codesandbox.io',
+  uri: "https://71z1g.sse.codesandbox.io/",
   cache: new InMemoryCache()
 });
 
-const EXCHANGE_RATES = gql`
-  query GetExchangeRates {
-    rates(currency: "USD") {
-      currency
-      rate
+const GET_DOGS = gql`
+  query GetDogs {
+    dogs {
+      id
+      breed
     }
   }
 `;
 
-function ExchangeRates() {
-  const { loading, error, data } = useQuery(EXCHANGE_RATES);
+function Dogs({ onDogSelected }) {
+  const { loading, error, data } = useQuery(GET_DOGS);
 
-  if (loading) return <p>Loading...</p>;
-  if (error) return <p>Error :(</p>;
+  if (loading) return 'Loading...';
+  if (error) return `Error! ${error.message}`;
 
-  return data.rates.map(({ currency, rate }) => (
-    <div key={currency}>
-      <p>
-        {currency}: {rate}
-      </p>
-    </div>
-  ));
+  return (
+    <select name="dog" onChange={onDogSelected}>
+      {data.dogs.map(dog => (
+        <option key={dog.id} value={dog.breed}>
+          {dog.breed}
+        </option>
+      ))}
+    </select>
+  );
 }
 
-ReactDOM.render(
-  <React.StrictMode>
+const GET_DOG_PHOTO = gql`
+  query Dog($breed: String!) {
+    dog(breed: $breed) {
+      id
+      displayImage
+    }
+  }
+`;
+
+function DogPhoto({ breed }) {
+  const { loading, error, data, refetch, networkStatus } = useQuery(
+    GET_DOG_PHOTO,
+    {
+      variables: { breed },
+      notifyOnNetworkStatusChange: true,
+    }
+  );
+
+  if (networkStatus === NetworkStatus.refetch) return 'Refetching!';
+  if (loading) return null;
+  if (error) return `Error! ${error}`;
+
+  return (
+    <div>
+      <img alt={breed} src={data.dog.displayImage} style={{ height: 100, width: 100 }} />
+      <button onClick={() => refetch()}>Refetch!</button>
+    </div>
+  );
+}
+
+function App() {
+  const [selectedDog, setSelectedDog] = useState(null);
+
+  function onDogSelected({ target }) {
+    setSelectedDog(target.value);
+  }
+
+  return (
     <ApolloProvider client={client}>
       <div>
-        <h2>My first Apollo app 🚀</h2>
-        <ExchangeRates />
+        <h2>Building Query components 🚀</h2>
+        {selectedDog && <DogPhoto breed={selectedDog} />}
+        <Dogs onDogSelected={onDogSelected} />
       </div>
     </ApolloProvider>
-  </React.StrictMode>,
-  document.getElementById('root')
-);
+  );
+}
 
-// If you want to start measuring performance in your app, pass a function
-// to log results (for example: reportWebVitals(console.log))
-// or send to an analytics endpoint. Learn more: https://bit.ly/CRA-vitals
-reportWebVitals();
+render(<App />, document.getElementById("root"));
